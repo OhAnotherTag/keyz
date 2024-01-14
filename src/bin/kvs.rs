@@ -1,9 +1,9 @@
 use std::io::Write;
 
 use clap::{arg, command, Command};
-use kvs::KvStore;
+use kvs::{KvStore, KvsError, Result};
 
-fn main() -> Result<(), String> {
+fn main() -> Result<()> {
     let mut store = KvStore::new();
 
     loop {
@@ -21,8 +21,8 @@ fn main() -> Result<(), String> {
                 }
             }
             Err(err) => {
-                write!(std::io::stdout(), "{err}").map_err(|e| e.to_string())?;
-                std::io::stdout().flush().map_err(|e| e.to_string())?;
+                write!(std::io::stdout(), "{err}")?;
+                std::io::stdout().flush()?;
             }
         }
     }
@@ -30,28 +30,26 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn readline() -> Result<String, String> {
-    write!(std::io::stdout(), "> ").map_err(|e| e.to_string())?;
-    std::io::stdout().flush().map_err(|e| e.to_string())?;
+fn readline() -> Result<String> {
+    write!(std::io::stdout(), "> ")?;
+    std::io::stdout().flush()?;
 
     let mut buffer = String::new();
-    std::io::stdin()
-        .read_line(&mut buffer)
-        .map_err(|e| e.to_string())?;
+    std::io::stdin().read_line(&mut buffer)?;
 
     Ok(buffer)
 }
 
-fn main_loop(line: &str, store: &mut KvStore) -> Result<bool, String> {
-    let args = shlex::split(line).ok_or("error: Invalid quoting")?;
-    let matches = cli()
-        .try_get_matches_from(args)
-        .map_err(|e| e.to_string())?;
+fn main_loop(line: &str, store: &mut KvStore) -> Result<bool> {
+    let args =
+        shlex::split(line).ok_or(KvsError::UnexpectedCommandType)?;
+
+    let matches = cli().try_get_matches_from(args)?;
 
     match matches.subcommand() {
         Some(("get", sub_matches)) => {
             let key = sub_matches.get_one::<String>("KEY").unwrap();
-            let value = store.get(key.clone());
+            let value = store.get(key.clone())?;
 
             match value {
                 Some(_v) => println!("{{ key: {:?}, value: {:?}}}", key, _v),
@@ -64,7 +62,7 @@ fn main_loop(line: &str, store: &mut KvStore) -> Result<bool, String> {
             let key = sub_matches.get_one::<String>("KEY").unwrap();
             let value = sub_matches.get_one::<String>("VALUE").unwrap();
 
-            store.set(key.clone(), value.clone());
+            store.set(key.clone(), value.clone())?;
 
             println!("{{ key: {:?}, value: {:?}}}", key, value);
 
@@ -72,7 +70,8 @@ fn main_loop(line: &str, store: &mut KvStore) -> Result<bool, String> {
         }
         Some(("rm", sub_matches)) => {
             let key = sub_matches.get_one::<String>("KEY").unwrap();
-            store.remove(key.clone());
+            store.remove(key.clone())?;
+            
             println!("key: {:?} was removed", key);
 
             Ok(false)
